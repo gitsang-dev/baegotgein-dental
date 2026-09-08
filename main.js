@@ -20,13 +20,15 @@ if(!reduce && window.Lenis){
   });
 }
 
-/* ---------- nav + callbar ---------- */
+/* ---------- nav + callbar + scroll progress ---------- */
 (function(){
   const nav=document.getElementById('nav'); const bar=document.querySelector('.callbar');
+  const prog=document.createElement('div'); prog.className='scrollprog'; document.body.appendChild(prog);
   ScrollTrigger.create({start:0,end:'max',onUpdate:s=>{
     const y=s.scroll();
     nav.classList.toggle('scrolled', y>20);
     if(bar) bar.classList.toggle('show', y>760);
+    prog.style.transform='scaleX('+s.progress+')';
   }});
 })();
 
