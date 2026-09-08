@@ -347,3 +347,4 @@ h1,h2,h3{letter-spacing:-.035em;line-height:1.12;font-weight:700}
 .foot__sns--naver:hover{background:#03c75a;color:#fff;border-color:#03c75a}
 .foot__sns--booking:hover{background:var(--brand);color:#fff;border-color:var(--brand)}
 .foot__sns--place:hover{background:#fff;color:var(--ink);border-color:#fff}
+.foot__sns--insta:hover{background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff;border-color:transparent}
