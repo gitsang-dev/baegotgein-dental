@@ -1,95 +1,65 @@
 /* =========================================================
-   배곧건치과의원 — interactions
+   배곧건치과의원 — interactions (native scroll, no smooth-scroll lib)
    ========================================================= */
 gsap.registerPlugin(ScrollTrigger);
-let reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-if(location.search.includes('static')) reduce = true;
-
-/* ---------- Lenis ---------- */
-let lenis;
-if(!reduce && window.Lenis){
-  lenis = new Lenis({lerp:.12, wheelMultiplier:1.05, syncTouch:true});
-  lenis.on('scroll', ScrollTrigger.update);
-  gsap.ticker.add(t=>lenis.raf(t*1000));
-  gsap.ticker.lagSmoothing(0);
-  document.querySelectorAll('a[href^="#"]').forEach(a=>{
-    a.addEventListener('click',e=>{
-      const id=a.getAttribute('href');
-      if(id.length>1 && document.querySelector(id)){ e.preventDefault(); lenis.scrollTo(id,{offset:-70,duration:1.3}); }
-    });
-  });
-}
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---------- nav + callbar + scroll progress ---------- */
 (function(){
   const nav=document.getElementById('nav'); const bar=document.querySelector('.callbar');
   const prog=document.createElement('div'); prog.className='scrollprog'; document.body.appendChild(prog);
-  ScrollTrigger.create({start:0,end:'max',onUpdate:s=>{
-    const y=s.scroll();
+  let ticking=false;
+  function onScroll(){
+    const y=window.scrollY||document.documentElement.scrollTop;
+    const max=document.documentElement.scrollHeight-window.innerHeight;
     nav.classList.toggle('scrolled', y>20);
     if(bar) bar.classList.toggle('show', y>760);
-    prog.style.transform='scaleX('+s.progress+')';
-  }});
+    prog.style.transform='scaleX('+(max>0?y/max:0)+')';
+    ticking=false;
+  }
+  window.addEventListener('scroll',()=>{ if(!ticking){ticking=true;requestAnimationFrame(onScroll);} },{passive:true});
+  onScroll();
 })();
 
-/* ---------- HERO slider ---------- */
+/* ---------- HERO banner slider ---------- */
 (function(){
-  const slides=[...document.querySelectorAll('.slide')];
-  const copiesH=[...document.querySelectorAll('.hero__copy h1')];
-  const copiesP=[...document.querySelectorAll('.hero__copy p')];
-  const bar=document.getElementById('heroBar');
-  const num=document.getElementById('heroNum');
-  const prev=document.getElementById('heroPrev'), next=document.getElementById('heroNext'), play=document.getElementById('heroPlay');
-  if(!slides.length) return;
-  const N=slides.length, DUR=6;
-  let cur=0, playing=!reduce, barTween;
-
+  const track=document.getElementById('heroTrack');
+  if(!track) return;
+  const slides=[...track.querySelectorAll('.banner')];
+  const dots=[...document.querySelectorAll('#heroDots button')];
+  const prev=document.getElementById('heroPrev'), next=document.getElementById('heroNext');
+  const N=slides.length; let cur=0, timer=null; const DUR=5000;
   function show(i){
     cur=(i+N)%N;
     slides.forEach((s,x)=>s.classList.toggle('is-active',x===cur));
-    copiesH.forEach((h,x)=>h.hidden=(x!==cur));
-    copiesP.forEach((p,x)=>p.hidden=(x!==cur));
-    num.textContent=String(cur+1).padStart(2,'0');
-    // always restore every copy to a visible resting state so a fast/interrupted
-    // transition can never leave a headline stuck at opacity 0
-    gsap.killTweensOf('.hero__copy h1 > *, .hero__copy p');
-    gsap.set('.hero__copy h1 > *, .hero__copy p',{opacity:1,y:0,yPercent:0});
-    if(!reduce){
-      gsap.from(copiesH[cur].children,{yPercent:60,opacity:0,duration:.8,stagger:.08,ease:'expo.out',overwrite:true});
-      gsap.from(copiesP[cur],{y:14,opacity:0,duration:.7,ease:'expo.out',overwrite:true});
-    }
-    runBar();
+    dots.forEach((d,x)=>d.classList.toggle('is-active',x===cur));
   }
-  function runBar(){
-    if(barTween) barTween.kill();
-    gsap.set(bar,{scaleX:0});
-    if(playing && !reduce){
-      barTween=gsap.to(bar,{scaleX:1,duration:DUR,ease:'none',onComplete:()=>show(cur+1)});
-    } else { gsap.set(bar,{scaleX: reduce?1:0}); }
-  }
-  function setPlay(p){ playing=p; play.classList.toggle('playing',p); runBar(); }
-
-  prev.addEventListener('click',()=>{show(cur-1);});
-  next.addEventListener('click',()=>{show(cur+1);});
-  play.addEventListener('click',()=>setPlay(!playing));
-  show(0);
-  if(reduce) setPlay(false);
+  function play(){ if(reduce) return; stop(); timer=setInterval(()=>show(cur+1),DUR); }
+  function stop(){ if(timer){clearInterval(timer);timer=null;} }
+  prev&&prev.addEventListener('click',()=>{show(cur-1);play();});
+  next&&next.addEventListener('click',()=>{show(cur+1);play();});
+  dots.forEach((d,x)=>d.addEventListener('click',()=>{show(x);play();}));
+  const hero=document.querySelector('.hero');
+  hero.addEventListener('mouseenter',stop); hero.addEventListener('mouseleave',play);
+  show(0); play();
 })();
 
 /* ---------- reveals ---------- */
 (function(){
-  if(reduce){ document.querySelectorAll('[data-reveal]').forEach(e=>e.classList.add('reveal-in')); return; }
-  document.querySelectorAll('[data-reveal]').forEach(el=>{
-    ScrollTrigger.create({trigger:el,start:'top 86%',once:true,onEnter:()=>el.classList.add('reveal-in')});
-  });
+  const items=document.querySelectorAll('[data-reveal]');
+  if(reduce || !('IntersectionObserver' in window)){ items.forEach(e=>e.classList.add('reveal-in')); return; }
+  const io=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('reveal-in'); io.unobserve(e.target); } });
+  },{rootMargin:'0px 0px -8% 0px',threshold:0.05});
+  items.forEach(el=>io.observe(el));
   gsap.utils.toArray('.sec-head').forEach(el=>{
-    gsap.from(el.children,{y:26,opacity:0,duration:.9,ease:'expo.out',stagger:.08,scrollTrigger:{trigger:el,start:'top 84%'}});
+    gsap.from(el.children,{y:24,opacity:0,duration:.9,ease:'expo.out',stagger:.08,scrollTrigger:{trigger:el,start:'top 86%'}});
   });
   gsap.utils.toArray('.pcard').forEach((el,i)=>{
-    gsap.from(el,{y:34,opacity:0,duration:.9,ease:'expo.out',delay:i*.1,scrollTrigger:{trigger:'.cards',start:'top 82%'}});
+    gsap.from(el,{y:32,opacity:0,duration:.9,ease:'expo.out',delay:i*.1,scrollTrigger:{trigger:'.cards',start:'top 84%'}});
   });
   gsap.utils.toArray('.quick__item').forEach((el,i)=>{
-    gsap.from(el,{y:20,opacity:0,duration:.7,ease:'expo.out',delay:i*.08,scrollTrigger:{trigger:'.quick',start:'top 92%'}});
+    gsap.from(el,{y:18,opacity:0,duration:.7,ease:'expo.out',delay:i*.07,scrollTrigger:{trigger:'.quick',start:'top 94%'}});
   });
 })();
 
@@ -103,7 +73,7 @@ if(!reduce && window.Lenis){
       tabs.forEach(b=>b.classList.toggle('is-active',b===btn));
       panels.forEach(p=>{
         const on=p.dataset.i===i; p.classList.toggle('is-active',on);
-        if(on&&!reduce) gsap.fromTo(p.querySelector('.care__text'),{opacity:0,y:16},{opacity:1,y:0,duration:.6,ease:'expo.out'});
+        if(on&&!reduce) gsap.fromTo(p.querySelector('.care__text'),{opacity:0,y:16},{opacity:1,y:0,duration:.55,ease:'expo.out'});
       });
     });
   });
@@ -137,19 +107,20 @@ if(!reduce){
     if(s){
       const isLunch=(day>=1&&day<=5)&&min>=LUNCH[0]&&min<LUNCH[1];
       if(min>=s[0]&&min<s[1]){
-        if(isLunch) return {state:'lunch',msg:'점심시간 · 오후 2시 진료 재개'};
-        return {state:'open',msg:'지금 진료 중 · '+fmt(s[1])+' 마감'};
+        if(isLunch) return {state:'lunch',msg:'점심시간 · 오후 2시 진료 재개',short:'점심시간 (14시 재개)'};
+        return {state:'open',msg:'지금 진료 중 · '+fmt(s[1])+' 마감',short:'진료 중 · '+fmt(s[1])+' 마감'};
       }
     }
-    for(let i=1;i<=7;i++){const nd=(day+i)%7;if(SCHED[nd])return{state:'closed',msg:'진료 종료 · '+DAYK[nd]+'요일 '+fmt(SCHED[nd][0])+' 오픈'};}
-    return {state:'closed',msg:'진료 시간을 확인해 주세요'};
+    for(let i=1;i<=7;i++){const nd=(day+i)%7;if(SCHED[nd])return{state:'closed',msg:'진료 종료 · '+DAYK[nd]+'요일 '+fmt(SCHED[nd][0])+' 오픈',short:DAYK[nd]+'요일 '+fmt(SCHED[nd][0])+' 오픈'};}
+    return {state:'closed',msg:'진료 시간을 확인해 주세요',short:'진료시간 확인'};
   }
   function paint(){
     const r=compute();
-    document.querySelectorAll('#statusPill,#statusPill2').forEach(el=>{
+    document.querySelectorAll('#statusPill2').forEach(el=>{
       el.classList.remove('is-open','is-lunch','is-closed');el.classList.add('is-'+r.state);
       const b=el.querySelector('b');if(b)b.textContent=r.msg;
     });
+    const qh=document.getElementById('quickHours'); if(qh) qh.textContent=r.short;
   }
   paint();setInterval(paint,60000);
 })();
